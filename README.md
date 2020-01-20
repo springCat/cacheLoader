@@ -60,4 +60,39 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
                 
  String cacheValue = (String) loadingCache.getWithLoader("cacheKey");                
 ```
+例如结合redisTemplate操作如下：
 
+```java
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+    
+    public void test() {
+        LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
+
+        LoadingCache<String,Object> loadingCache = builder
+                .cacheGetter(request -> {
+                    request.getAttributes().put("cacheGetter", "cacheGetter");
+                    return redisTemplate.opsForValue().get(request.getKey());
+                })
+                .cacheLoader(request -> {
+                    System.out.println("cacheLoader request:"+request);
+                    request.getAttributes().put("cacheLoader", "cacheLoader");
+                    //cache loader invoke here get Value
+                    return ${cacheValue};
+                })
+                .cachePutter(request -> {
+                    redisTemplate.opsForValue().set(request.getKey(), request.getCacheValue(), request.getExpireTime(), TimeUnit.SECONDS);
+                })
+                .randomExpireTime(5L)
+                .expireTime(60L)
+                .emptyElementCached(true)
+                .emptyElement("empty")
+                .emptyElementExpireTime(5L)
+                .loaderConcurrency(new Semaphore(2))
+                .loaderConcurrencyPolicy(LoadingCache.LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy)
+                .build();
+        
+        String test = (String) loadingCache.getWithLoader("test");
+ 
+    }
+```
