@@ -14,10 +14,10 @@
 *  封装一些常用的功能，解决代码重复编写的问题，让代码更清晰易懂。
 
 
-#### cacheLoader获取数据到流程：
+### cacheLoader获取数据到流程：
 从缓存获取数据 -> 从数据源加载数据 -> 加载数据到缓存 
 
-#### cacheLoader目前实现的功能：
+### cacheLoader目前实现的功能：
 1. 支持任意的缓存
 2. 支持空值缓存，空值缓存自定义值和时间
 3. 加载并发数控制以及到达设定的数量值后的策略，比如等待或者抛弃
@@ -27,10 +27,11 @@
 7. 简单清晰的源码，基本没有学习成本
 8. cache context，其中参数可以从最初到最后一路传递
 
-#### cacheLoader待实现的功能：
+### cacheLoader待实现的功能：
 1. 全局线程池和异步的缓存加载（目前也很简单，只需要用户自己在代码中异步调用refresh方法就好）
 2. key生成器（目前这块交给用户自定义，也很灵活）
-#### 使用方法：
+
+### 使用方法：
 ```java
 LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
 
