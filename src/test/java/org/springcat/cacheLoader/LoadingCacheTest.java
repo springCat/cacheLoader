@@ -33,15 +33,14 @@ public class LoadingCacheTest {
                 .emptyElement("empty")
                 .emptyElementExpireTime(5L)
                 .loaderConcurrency(new Semaphore(2))
-                .loaderConcurrencyPolicy(LoadingCache.LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy)
                 .build();
 
-        for (int i = 0; i < 5; i++) {
-           execAsync(()->{
-                String test = (String) loadingCache.getWithLoader("test");
-                System.out.println(test);
-            },false);
-        }
+//        for (int i = 0; i < 5; i++) {
+//           execAsync(()->{
+//                String test = (String) loadingCache.getWithLoader("test");
+//                System.out.println(test);
+//            },false);
+//        }
 
         String test = (String) loadingCache.getWithLoader("test");
         System.out.println(test);

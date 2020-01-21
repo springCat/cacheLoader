@@ -57,7 +57,6 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
                 .emptyElement("empty")
                 .emptyElementExpireTime(5L)
                 .loaderConcurrency(new Semaphore(2))
-                .loaderConcurrencyPolicy(LoadingCache.LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy)
                 .build();
                 
  String cacheValue = (String) loadingCache.getWithLoader("cacheKey");                
@@ -92,7 +91,6 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
                 .emptyElement("empty")
                 .emptyElementExpireTime(5L)
                 .loaderConcurrency(new Semaphore(2))
-                .loaderConcurrencyPolicy(LoadingCache.LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy)
                 .build();
         
         String test = (String) loadingCache.getWithLoader("test");
