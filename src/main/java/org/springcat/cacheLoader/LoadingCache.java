@@ -33,7 +33,8 @@ public class LoadingCache<K, V> {
     private Long expireTime;
 
     //是否启动空值缓存
-    private boolean emptyElementCached;
+    @Builder.Default
+    private boolean emptyElementCached = false;
 
     //空值缓存的值
     private V emptyElement;
@@ -80,12 +81,15 @@ public class LoadingCache<K, V> {
         this.keyLockPool = keyLockPool;
 
         assertNotNull(cacheName);
+        assertNotNull(cacheSize);
         assertNotNull(cacheGetter);
         assertNotNull(cacheLoader);
         assertNotNull(cachePutter);
         assertNotNull(expireTime);
 
-        this.keyLockPool = new KeyLockPool(cacheSize,expireTime*1000L);
+        if(keyLockPool == null) {
+            this.keyLockPool = new KeyLockPool(cacheSize, expireTime * 1000L);
+        }
     }
 
     /**
