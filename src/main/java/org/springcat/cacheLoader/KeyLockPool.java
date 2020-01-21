@@ -28,7 +28,7 @@ public class KeyLockPool<K,V> {
         boolean getLock = readLock.tryLock(timeout, TimeUnit.SECONDS);
         //没有获得锁就退出，Optional.empty()表示后续无需再进行缓存刷新
         if(!getLock) {
-            throw new InterruptedException();
+            throw new InterruptedException("keylock");
         }
         try {
             return function.apply(request);
@@ -49,7 +49,7 @@ public class KeyLockPool<K,V> {
         boolean getLock = writeLock.tryLock(timeout, TimeUnit.SECONDS);
         //没有获得锁就退出，Optional.empty()表示后续无需再进行缓存刷新
         if(!getLock) {
-            throw new InterruptedException();
+            throw new InterruptedException("keylock");
         }
         try {
             return function.apply(request);

@@ -92,11 +92,16 @@ public class LoadingCache<K, V> {
          if(requestParams != null){
              requestBuilder.loaderParams(requestParams);
          }
-        CacheResponse<K, V> response = refresh(requestBuilder.build());
-        return response.getValue();
+         
+         try {
+             CacheResponse<K, V> response = refresh(requestBuilder.build());
+             return response.getValue();
+         }catch (InterruptedException exception){
+             return null;
+         }
     }
 
-    public CacheResponse<K,V> refresh(CacheRequest<K,V> request) {
+    public CacheResponse<K,V> refresh(CacheRequest<K,V> request) throws InterruptedException{
         return refreshWithCacheLock(request);
     }
 
@@ -144,8 +149,7 @@ public class LoadingCache<K, V> {
      * @param request
      * @return
      */
-    @SneakyThrows
-    private CacheResponse<K,V> refreshWithCacheLock(CacheRequest<K,V> request) {
+    private CacheResponse<K,V> refreshWithCacheLock(CacheRequest<K,V> request) throws InterruptedException{
         //无限制
         if(loaderConcurrency == null){
             return refreshWithKeyLock(request);
@@ -154,7 +158,7 @@ public class LoadingCache<K, V> {
         boolean getLock = loaderConcurrency.tryAcquire(loaderConcurrencyPolicyTimeout, TimeUnit.SECONDS);
         //没有获得锁
         if(!getLock) {
-            return null;
+            throw new InterruptedException("cachelock");
         }
         //获得锁
         try {
