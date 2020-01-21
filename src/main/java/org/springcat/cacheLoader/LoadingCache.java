@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -42,14 +41,10 @@ public class LoadingCache<K, V> {
     //随机过期时间，在expireTime的基础上随机增加或者减少randomExpireTime秒，防止缓存集中过期造成系统突刺
     private long randomExpireTime;
 
-    //loader并发加载数  默认无限制
+    //loader并发加载数,默认无限制
     private Semaphore loaderConcurrency;
 
-    // loader并发加载数满后的策略
-    @Builder.Default
-    private LoaderConcurrencyPolicy loaderConcurrencyPolicy = LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy;
-
-    //等待策略时到等待时长，默认等待5分钟
+    //loader并发加载数满后等待时长，默认等待5分钟,设置为0，则不等待立即返回
     @Builder.Default
     private Long loaderConcurrencyPolicyTimeout = 5*60L;
 
@@ -57,49 +52,13 @@ public class LoadingCache<K, V> {
     @Builder.Default
     private boolean isLoaderConcurrencyOnKey = true;
 
-    //单个key上是否并发到限制后，加载策略
-    @Builder.Default
-    private LoaderConcurrencyPolicy loaderConcurrencyPolicyOnKey = LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy;
-
-    //单个key，等待策略时到等待时长，默认等待5分钟
+    //单个key，并发加载数满后等待时长，默认等待5分钟,设置为0，则不等待立即返回
     @Builder.Default
     private Long loaderConcurrencyPolicyTimeoutOnKey = 5 * 60L;
 
-    enum LoaderConcurrencyPolicy {
-        WaitLoaderConcurrencyPolicy(1),
-        RejectLoaderConcurrencyPolicy(2);
-        LoaderConcurrencyPolicy(int type) {
-            this.type = type;
-        }
-        private int type;
-    }
-
-    //定义操作组合
-    enum OpsType {
-        //读取缓存
-        READ(1),
-        //执行loader
-        LOAD(2),
-        //读取缓存，执行loader
-        READ_LOAD(3),
-        //操作缓存
-        WRITE(4),
-        //读取缓存，加载缓存
-        READ_WRITE(5),
-        //加载loader，加载缓存
-        LOAD_WRITE(6),
-        //读取缓存，执行loader，加载缓存
-        READ_LOAD_WRITE(7);
-        OpsType(int type) {
-            this.type = type;
-        }
-        private int type;
-    }
-
     //用于控制单个key上单并发,利用ConcurrentHashMap，后续考虑切换到lruCache，目前的缓存存在被撑爆的风险
     @Builder.Default
-    private Map<String, ReentrantReadWriteLock> keyLockPool = new ConcurrentHashMap<String, ReentrantReadWriteLock>();
-
+    private KeyLockPool<K> keyLockPool = new KeyLockPool<K>();
 
     public V get(K key) {
         CacheRequest.CacheRequestBuilder<K,V> builder = CacheRequest.builder();
@@ -115,29 +74,16 @@ public class LoadingCache<K, V> {
 
     @SneakyThrows
     public Optional<V> get(CacheRequest<K,V> request) {
-
         V apply = cacheGetter.apply(request);
         if(apply != null){
             return Optional.of(apply);
         }
-
         //允许并发加载，无限制
         if(isLoaderConcurrencyOnKey){
             return null;
         }
-
-        ReentrantReadWriteLock reentrantLock = keyLockPool.computeIfAbsent(Objects.toString(request.getKey()), cacheName -> new ReentrantReadWriteLock());
-        ReentrantReadWriteLock.ReadLock readLock = reentrantLock.readLock();
-
-        long reqLoaderConcurrencyPolicyTimeoutOnKey = 0;
-        if (loaderConcurrencyPolicy == LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy) {
-            reqLoaderConcurrencyPolicyTimeoutOnKey = loaderConcurrencyPolicyTimeoutOnKey;
-        }
-        if(loaderConcurrencyPolicy == LoaderConcurrencyPolicy.RejectLoaderConcurrencyPolicy){
-            reqLoaderConcurrencyPolicyTimeoutOnKey = 0;
-        }
-
-        boolean getLock = readLock.tryLock(reqLoaderConcurrencyPolicyTimeoutOnKey, TimeUnit.SECONDS);
+        ReentrantReadWriteLock.ReadLock readLock = keyLockPool.getReadLock(request.getKey());
+        boolean getLock = readLock.tryLock(getLoaderConcurrencyPolicyTimeoutOnKey(), TimeUnit.SECONDS);
         //没有获得锁就退出，Optional.empty()表示后续无需再进行缓存刷新
         if(!getLock) {
             return Optional.empty();
@@ -157,10 +103,9 @@ public class LoadingCache<K, V> {
 
     public V refresh(K key, Map<String,Object> requestParams){
         CacheRequest.CacheRequestBuilder<K, V> requestBuilder = CacheRequest.builder();
-        requestBuilder
-                .key(key);
+        requestBuilder.key(key);
          if(requestParams != null){
-             requestBuilder.requestParams(requestParams);
+             requestBuilder.loaderParams(requestParams);
          }
         CacheResponse<K, V> response = refresh(requestBuilder.build());
         return response.getValue();
@@ -181,16 +126,7 @@ public class LoadingCache<K, V> {
         if(loaderConcurrency == null){
             return refreshOnKey(request);
         }
-        //等待策略，需要等待线程
-        long reqLoaderConcurrencyPolicyTimeout = 0;
-        if (loaderConcurrencyPolicy == LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy) {
-            reqLoaderConcurrencyPolicyTimeout =loaderConcurrencyPolicyTimeout;
-        }
-        //拒绝策略，需要获得信号量
-        else if(loaderConcurrencyPolicy == LoaderConcurrencyPolicy.RejectLoaderConcurrencyPolicy){
-            reqLoaderConcurrencyPolicyTimeout = 0;
-        }
-       boolean getLock = loaderConcurrency.tryAcquire(reqLoaderConcurrencyPolicyTimeout, TimeUnit.SECONDS);
+       boolean getLock = loaderConcurrency.tryAcquire(loaderConcurrencyPolicyTimeout, TimeUnit.SECONDS);
         //没有获得锁
         if(!getLock) {
             return null;
@@ -216,10 +152,8 @@ public class LoadingCache<K, V> {
         if(isLoaderConcurrencyOnKey){
             return refreshRaw(request);
         }
-        ReentrantReadWriteLock reentrantLock = keyLockPool.computeIfAbsent(Objects.toString(request.getKey()), cacheName -> new ReentrantReadWriteLock());
-        ReentrantReadWriteLock.WriteLock writeLock = reentrantLock.writeLock();
-
-        boolean getLock = writeLock.tryLock();
+        ReentrantReadWriteLock.WriteLock writeLock = keyLockPool.getWriteLock(request.getKey());
+        boolean getLock = writeLock.tryLock(loaderConcurrencyPolicyTimeoutOnKey, TimeUnit.SECONDS);
         //没有获得锁就直接退出，说明有其他loader在加载了
         if(!getLock) {
             return null;
@@ -253,7 +187,6 @@ public class LoadingCache<K, V> {
         if(randomExpireTime > 0) {
             reqExpireTime = ThreadLocalRandom.current().nextLong(reqExpireTime - randomExpireTime, reqExpireTime + randomExpireTime);
         }
-
         //加载失败，无空值缓存
         if(value == null && !emptyElementCached){
             return responseBuilder.build();
@@ -284,7 +217,7 @@ public class LoadingCache<K, V> {
         CacheRequest.CacheRequestBuilder<K,V> requestBuilder = CacheRequest.builder();
         requestBuilder.key(key);
         if(requestParams != null){
-            requestBuilder.requestParams(requestParams);
+            requestBuilder.loaderParams(requestParams);
         }
         CacheResponse<K, V> response = getWithLoader( requestBuilder.build());
         return response.getValue();
