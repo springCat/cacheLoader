@@ -4,9 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -57,23 +55,31 @@ public class LoadingCache<K, V> {
     private Long loaderConcurrencyPolicyTimeoutOnKey = 5 * 60L;
 
     @Builder.Default
-    private KeyLockPool<K> keyLockPool = new KeyLockPool<K>();
+    private KeyLockPool<K,V> keyLockPool = new KeyLockPool<K,V>();
 
+    /**
+     * 最简单的调用
+     * @param key
+     * @return
+     */
     public V getOnly(K key) {
         CacheRequest.CacheRequestBuilder<K,V> builder = CacheRequest.builder();
-        CacheRequest<K, V> request = builder
-                .key(key)
-                .build();
-
-        return getOnly(request);
+        CacheRequest<K, V> request = builder.key(key).build();
+        try {
+            return getOnly(request);
+        }catch (InterruptedException exception){
+            return null;
+        }
     }
 
-    public V getOnly(CacheRequest<K,V> request) {
-        Optional<V> v = getWithKeyLock(request);
-        if(v != null && v.isPresent()){
-            return v.get();
-        }
-        return null;
+    /**
+     * 尽量暴露更多细节和可配置的的方法
+     * @param request
+     * @return
+     * @throws InterruptedException
+     */
+    public V getOnly(CacheRequest<K,V> request) throws InterruptedException{
+        return keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey,cacheGetter,request);
     }
 
     public V refresh(K key){
@@ -104,27 +110,35 @@ public class LoadingCache<K, V> {
         if(requestParams != null){
             requestBuilder.loaderParams(requestParams);
         }
-        CacheResponse<K, V> response = getWithLoader( requestBuilder.build());
-        return response.getValue();
+        try {
+            CacheResponse<K, V> response = getWithLoader(requestBuilder.build());
+            return response.getValue();
+        }catch (InterruptedException exception){
+            return null;
+        }
     }
 
-    public CacheResponse<K,V> getWithLoader(CacheRequest<K,V> request){
-        Optional<V> cacheValueOptional = getWithKeyLock(request);
-        if(cacheValueOptional != null){
-            if(cacheValueOptional.isPresent()) {
-                CacheResponse.CacheResponseBuilder<K, V> responseBuilder = CacheResponse.builder();
-                responseBuilder.cacheRequest(request);
-                responseBuilder.value(cacheValueOptional.get());
-                return responseBuilder.build();
-            }else {
-                //特殊处理，在开启key上并发控制时，没有获得锁的请求，或者等待超时的情况时，直接返回null
-                return null;
-            }
+    /**
+     * 尽量暴露更多细节和可配置的getWithLoader
+     * @param request
+     * @return
+     * @throws InterruptedException
+     */
+    public CacheResponse<K,V> getWithLoader(CacheRequest<K,V> request) throws InterruptedException{
+        V v = keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
+        if(v != null){
+            CacheResponse.CacheResponseBuilder<K, V> responseBuilder = CacheResponse.builder();
+            responseBuilder.cacheRequest(request);
+            responseBuilder.value(v);
+            return responseBuilder.build();
         }
+        //加载获取
         return refresh(request);
     }
 
+
     /******************************************private****************************************************/
+
     /**
      * 控制单cache层面的并发
      * @param request
@@ -136,6 +150,7 @@ public class LoadingCache<K, V> {
         if(loaderConcurrency == null){
             return refreshWithKeyLock(request);
         }
+
         boolean getLock = loaderConcurrency.tryAcquire(loaderConcurrencyPolicyTimeout, TimeUnit.SECONDS);
         //没有获得锁
         if(!getLock) {
@@ -156,25 +171,12 @@ public class LoadingCache<K, V> {
      * @param request
      * @return
      */
-    @SneakyThrows
-    private CacheResponse<K,V> refreshWithKeyLock(CacheRequest<K,V> request) {
+    private CacheResponse<K,V> refreshWithKeyLock(CacheRequest<K,V> request) throws InterruptedException {
         //允许并发加载，无限制
         if(isLoaderConcurrencyOnKey){
             return refreshRaw(request);
         }
-        ReentrantReadWriteLock.WriteLock writeLock = keyLockPool.getWriteLock(request.getKey());
-        boolean getLock = writeLock.tryLock(loaderConcurrencyPolicyTimeoutOnKey, TimeUnit.SECONDS);
-        //没有获得锁就直接退出，说明有其他loader在加载了
-        if(!getLock) {
-            return null;
-        }
-        try {
-            CacheResponse<K, V> response = refreshRaw(request);
-            return response;
-        }finally{
-            //一定要释放信号量
-            writeLock.unlock();
-        }
+        return keyLockPool.doWithWriteLock(0, this::refreshRaw,request);
     }
 
     /**
@@ -217,35 +219,5 @@ public class LoadingCache<K, V> {
         cachePutter.accept(request);
         responseBuilder.value(value);
         return responseBuilder.build();
-    }
-
-    @SneakyThrows
-    private Optional<V> getWithKeyLock(CacheRequest<K,V> request) {
-        V apply = getRaw(request);
-        if(apply != null){
-            return Optional.of(apply);
-        }
-        //允许并发加载，无限制
-        if(isLoaderConcurrencyOnKey){
-            return null;
-        }
-
-        ReentrantReadWriteLock.ReadLock readLock = keyLockPool.getReadLock(request.getKey());
-        boolean getLock = readLock.tryLock(getLoaderConcurrencyPolicyTimeoutOnKey(), TimeUnit.SECONDS);
-        //没有获得锁就退出，Optional.empty()表示后续无需再进行缓存刷新
-        if(!getLock) {
-            return Optional.empty();
-        }
-        try {
-            V value = getRaw(request);
-            return value == null ? null : Optional.of(value);
-        }finally{
-            //一定要释放信号量
-            readLock.unlock();
-        }
-    }
-
-    private V getRaw(CacheRequest<K,V> request) {
-        return cacheGetter.apply(request);
     }
 }
