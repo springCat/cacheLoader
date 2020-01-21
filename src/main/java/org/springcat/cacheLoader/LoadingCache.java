@@ -31,7 +31,7 @@ public class LoadingCache<K, V> {
     private Consumer<CacheRequest<K, V>> cachePutter;
 
     //时间默认单位秒
-    private Long expireTime;
+    private long expireTime;
 
     //是否启动空值缓存
     @Builder.Default
@@ -51,7 +51,7 @@ public class LoadingCache<K, V> {
 
     //loader并发加载数满后等待时长，默认等待5分钟,设置为0，则不等待立即返回
     @Builder.Default
-    private Long loaderConcurrencyPolicyTimeout = 5 * 60L;
+    private long loaderConcurrencyPolicyTimeout = 5 * 60L;
 
     //单个key上是否并发加载
     @Builder.Default
@@ -59,12 +59,12 @@ public class LoadingCache<K, V> {
 
     //单个key，并发加载数满后等待时长，默认等待5分钟,设置为0，则不等待立即返回
     @Builder.Default
-    private Long loaderConcurrencyPolicyTimeoutOnKey = 5 * 60L;
+    private long loaderConcurrencyPolicyTimeoutOnKey = 5 * 60L;
 
     @Builder.Default
     private KeyLockPool<K, V> keyLockPool;
 
-    public LoadingCache(String cacheName, int cacheSize, Function<CacheRequest<K, V>, V> cacheGetter, Function<CacheRequest<K, V>, V> cacheLoader, Consumer<CacheRequest<K, V>> cachePutter, Long expireTime, boolean emptyElementCached, V emptyElement, long emptyElementExpireTime, long randomExpireTime, Semaphore loaderConcurrency, Long loaderConcurrencyPolicyTimeout, boolean isLoaderConcurrencyOnKey, Long loaderConcurrencyPolicyTimeoutOnKey, KeyLockPool<K, V> keyLockPool) {
+    public LoadingCache(String cacheName, int cacheSize, Function<CacheRequest<K, V>, V> cacheGetter, Function<CacheRequest<K, V>, V> cacheLoader, Consumer<CacheRequest<K, V>> cachePutter, long expireTime, boolean emptyElementCached, V emptyElement, long emptyElementExpireTime, long randomExpireTime, Semaphore loaderConcurrency, long loaderConcurrencyPolicyTimeout, boolean isLoaderConcurrencyOnKey, long loaderConcurrencyPolicyTimeoutOnKey, KeyLockPool<K, V> keyLockPool) {
         this.cacheName = cacheName;
         this.cacheSize = cacheSize;
         this.cacheGetter = cacheGetter;
@@ -86,7 +86,21 @@ public class LoadingCache<K, V> {
         assertNotNull(cacheGetter);
         assertNotNull(cacheLoader);
         assertNotNull(cachePutter);
-        assertNotNull(expireTime);
+        assertTrue(expireTime > 0);
+
+        //校验空值缓存
+        if(emptyElementCached){
+            assertNotNull(emptyElement);
+            assertTrue(emptyElementExpireTime > 0);
+        }
+        //校验cache级并发控制
+        if(loaderConcurrency != null){
+            assertTrue(loaderConcurrencyPolicyTimeout >= 0);
+        }
+        //校验key级并发控制
+        if(!isLoaderConcurrencyOnKey){
+            assertTrue(loaderConcurrencyPolicyTimeoutOnKey >= 0);
+        }
 
         if(keyLockPool == null) {
             this.keyLockPool = new KeyLockPool(cacheSize, expireTime * 1000L);
@@ -292,6 +306,13 @@ public class LoadingCache<K, V> {
         cachePutter.accept(request);
         responseBuilder.value(value);
         return responseBuilder.build();
+    }
+
+
+    private void assertTrue(boolean flag) throws IllegalArgumentException {
+        if(!flag){
+            throw new IllegalArgumentException();
+        }
     }
 
     private void assertNotNull(Object object) throws IllegalArgumentException {
