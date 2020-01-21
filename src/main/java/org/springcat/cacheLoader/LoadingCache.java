@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -142,7 +143,7 @@ public class LoadingCache<K, V> {
         if(isLoaderConcurrencyOnKey){
             return refreshRaw(request);
         }
-        ReentrantLock reentrantLock = keyLockPool.computeIfAbsent(cacheName, cacheName -> new ReentrantLock());
+        ReentrantLock reentrantLock = keyLockPool.computeIfAbsent(Objects.toString(request.getKey()), cacheName -> new ReentrantLock());
         long reqLoaderConcurrencyPolicyTimeoutOnKey = 0;
         if (loaderConcurrencyPolicy == LoaderConcurrencyPolicy.WaitLoaderConcurrencyPolicy) {
             reqLoaderConcurrencyPolicyTimeoutOnKey = loaderConcurrencyPolicyTimeoutOnKey;

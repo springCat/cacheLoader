@@ -37,6 +37,7 @@
 LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
 
         LoadingCache<String,Object> loadingCache = builder
+                .cacheName("testCache")
                 .cacheGetter(request -> {
                     System.out.println("cacheGetter here request:"+request);
                     request.getAttributes().put("cacheGetter", "cacheGetter");
@@ -71,6 +72,7 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
         LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
 
         LoadingCache<String,Object> loadingCache = builder
+                .cacheName("testCache")
                 .cacheGetter(request -> {
                     request.getAttributes().put("cacheGetter", "cacheGetter");
                     return redisTemplate.opsForValue().get(request.getKey());
