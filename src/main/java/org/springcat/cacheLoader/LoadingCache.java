@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -15,6 +16,10 @@ public class LoadingCache<K, V> {
     //缓存名称
     private String cacheName;
 
+    //缓存容量
+    @Builder.Default
+    private int cacheSize = Integer.MAX_VALUE;
+
     //查询缓存操作
     private Function<CacheRequest<K, V>, V> cacheGetter;
 
@@ -25,7 +30,7 @@ public class LoadingCache<K, V> {
     private Consumer<CacheRequest<K, V>> cachePutter;
 
     //时间默认单位秒
-    private long expireTime;
+    private Long expireTime;
 
     //是否启动空值缓存
     private boolean emptyElementCached;
@@ -55,7 +60,33 @@ public class LoadingCache<K, V> {
     private Long loaderConcurrencyPolicyTimeoutOnKey = 5 * 60L;
 
     @Builder.Default
-    private KeyLockPool<K, V> keyLockPool = new KeyLockPool<K, V>();
+    private KeyLockPool<K, V> keyLockPool;
+
+    public LoadingCache(String cacheName, int cacheSize, Function<CacheRequest<K, V>, V> cacheGetter, Function<CacheRequest<K, V>, V> cacheLoader, Consumer<CacheRequest<K, V>> cachePutter, Long expireTime, boolean emptyElementCached, V emptyElement, long emptyElementExpireTime, long randomExpireTime, Semaphore loaderConcurrency, Long loaderConcurrencyPolicyTimeout, boolean isLoaderConcurrencyOnKey, Long loaderConcurrencyPolicyTimeoutOnKey, KeyLockPool<K, V> keyLockPool) {
+        this.cacheName = cacheName;
+        this.cacheSize = cacheSize;
+        this.cacheGetter = cacheGetter;
+        this.cacheLoader = cacheLoader;
+        this.cachePutter = cachePutter;
+        this.expireTime = expireTime;
+        this.emptyElementCached = emptyElementCached;
+        this.emptyElement = emptyElement;
+        this.emptyElementExpireTime = emptyElementExpireTime;
+        this.randomExpireTime = randomExpireTime;
+        this.loaderConcurrency = loaderConcurrency;
+        this.loaderConcurrencyPolicyTimeout = loaderConcurrencyPolicyTimeout;
+        this.isLoaderConcurrencyOnKey = isLoaderConcurrencyOnKey;
+        this.loaderConcurrencyPolicyTimeoutOnKey = loaderConcurrencyPolicyTimeoutOnKey;
+        this.keyLockPool = keyLockPool;
+
+        assertNotNull(cacheName);
+        assertNotNull(cacheGetter);
+        assertNotNull(cacheLoader);
+        assertNotNull(cachePutter);
+        assertNotNull(expireTime);
+
+        this.keyLockPool = new KeyLockPool(cacheSize,expireTime*1000L);
+    }
 
     /**
      * 最简单的调用
@@ -81,6 +112,7 @@ public class LoadingCache<K, V> {
      * @throws InterruptedException
      */
     public V getOnly(CacheRequest<K, V> request) throws InterruptedException {
+        assertNotNull(request.getKey());
         return keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
     }
 
@@ -103,6 +135,7 @@ public class LoadingCache<K, V> {
     }
 
     public CacheResponse<K, V> refresh(CacheRequest<K, V> request) throws InterruptedException {
+        assertNotNull(request.getKey());
         return refreshWithCacheLock(request);
     }
 
@@ -132,6 +165,7 @@ public class LoadingCache<K, V> {
      * @throws InterruptedException
      */
     public CacheResponse<K, V> getWithLoader(CacheRequest<K, V> request) throws InterruptedException {
+        assertNotNull(request.getKey());
         V v = keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
         if (v != null) {
             CacheResponse.CacheResponseBuilder<K, V> responseBuilder = CacheResponse.builder();
@@ -228,5 +262,11 @@ public class LoadingCache<K, V> {
         cachePutter.accept(request);
         responseBuilder.value(value);
         return responseBuilder.build();
+    }
+
+    private void assertNotNull(Object object) throws IllegalArgumentException {
+        if(Objects.isNull(object)){
+            throw new IllegalArgumentException();
+        }
     }
 }

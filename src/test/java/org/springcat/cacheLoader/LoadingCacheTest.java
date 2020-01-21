@@ -35,12 +35,12 @@ public class LoadingCacheTest {
                 .loaderConcurrency(new Semaphore(2))
                 .build();
 
-//        for (int i = 0; i < 5; i++) {
-//           execAsync(()->{
-//                String test = (String) loadingCache.getWithLoader("test");
-//                System.out.println(test);
-//            },false);
-//        }
+        for (int i = 0; i < 5; i++) {
+           execAsync(()->{
+                String test = (String) loadingCache.getWithLoader("test");
+                System.out.println(test);
+            });
+        }
 
         String test = (String) loadingCache.getWithLoader("test");
         System.out.println(test);
@@ -48,9 +48,9 @@ public class LoadingCacheTest {
     }
 
 
-    private static Runnable execAsync(final Runnable runnable, boolean isDaemon) {
+    private static Runnable execAsync(final Runnable runnable) {
         Thread thread = new Thread(runnable);
-        thread.setDaemon(isDaemon);
+        thread.setDaemon(false);
         thread.start();
         return runnable;
     }

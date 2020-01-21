@@ -1,24 +1,27 @@
 package org.springcat.cacheLoader;
 
-import lombok.SneakyThrows;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import cn.hutool.cache.CacheUtil;
+import cn.hutool.cache.impl.LRUCache;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
-/**
- *    暂时利用ConcurrentHashMap，后续考虑切换到lruCache，目前的缓存被恶意刷时被撑爆的风险
- * @param <K>
- */
+
 public class KeyLockPool<K,V> {
 
-    private Map<K, ReentrantReadWriteLock> keyLockPool = new ConcurrentHashMap<K, ReentrantReadWriteLock>();
+    private LRUCache<K, ReentrantReadWriteLock> keyLockPool;
+
+    /**
+     *
+     * @param capacity 容量
+     * @param timeout 过期时长，单位：毫秒
+     */
+    public KeyLockPool(int capacity, long timeout){
+        keyLockPool = CacheUtil.newLRUCache(capacity,timeout);
+    }
 
     public ReentrantReadWriteLock.ReadLock getReadLock(K lockName){
-        ReentrantReadWriteLock lock = keyLockPool.computeIfAbsent(lockName, cacheName -> new ReentrantReadWriteLock());
+        ReentrantReadWriteLock lock = keyLockPool.get(lockName, ReentrantReadWriteLock::new);
         ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
         return readLock;
     }
@@ -39,7 +42,7 @@ public class KeyLockPool<K,V> {
     }
 
     public ReentrantReadWriteLock.WriteLock getWriteLock(K lockName){
-        ReentrantReadWriteLock lock = keyLockPool.computeIfAbsent(lockName, cacheName -> new ReentrantReadWriteLock());
+        ReentrantReadWriteLock lock = keyLockPool.get(lockName, ReentrantReadWriteLock::new);
         ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
         return writeLock;
     }
