@@ -11,6 +11,7 @@ public class LoadingCacheTest {
         LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
 
         LoadingCache<String,Object> loadingCache = builder
+                .cacheName("testCache")
                 .cacheGetter(request -> {
                     System.out.println("cacheGetter request:"+request);
                     request.getAttributes().put("cacheGetter", "cacheGetter");
@@ -28,7 +29,7 @@ public class LoadingCacheTest {
                 })
                 .randomExpireTime(5L)
                 .expireTime(60L)
-                .emptyElementCached(true)
+                .emptyElementCached(false)
                 .emptyElement("empty")
                 .emptyElementExpireTime(5L)
                 .loaderConcurrency(new Semaphore(2))

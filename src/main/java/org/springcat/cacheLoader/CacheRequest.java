@@ -15,7 +15,7 @@ public class CacheRequest<K,V> {
     private K key;
 
     //缓存value
-    private V cacheValue;
+    private V value;
 
     //过期时间，单位(秒)
     private Long expireTime;
