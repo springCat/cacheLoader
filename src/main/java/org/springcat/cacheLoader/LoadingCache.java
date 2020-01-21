@@ -74,23 +74,38 @@ public class LoadingCache<K, V> {
         private int type;
     }
 
-//    enum OpsLevel {
-//        ReadCache(1),
-//        ReadCacheAndLoad(3),
-//        ReadCacheAndLoadAndPutCache(7);
-//        OpsLevel(int type) {
-//            this.type = type;
-//        }
-//        private int type;
-//    }
+    //定义操作组合
+    enum OpsType {
+        //读取缓存
+        READ(1),
+        //执行loader
+        LOAD(2),
+        //读取缓存，执行loader
+        READ_LOAD(3),
+        //操作缓存
+        WRITE(4),
+        //读取缓存，加载缓存
+        READ_WRITE(5),
+        //加载loader，加载缓存
+        LOAD_WRITE(6),
+        //读取缓存，执行loader，加载缓存
+        READ_LOAD_WRITE(7);
+        OpsType(int type) {
+            this.type = type;
+        }
+        private int type;
+    }
 
     //用于控制单个key上单并发,利用ConcurrentHashMap，后续考虑切换到lruCache，目前的缓存存在被撑爆的风险
     @Builder.Default
     private Map<String, ReentrantReadWriteLock> keyLockPool = new ConcurrentHashMap<String, ReentrantReadWriteLock>();
 
+
     public V get(K key) {
         CacheRequest.CacheRequestBuilder<K,V> builder = CacheRequest.builder();
-        CacheRequest<K, V> request = builder.key(key).build();
+        CacheRequest<K, V> request = builder
+                .key(key)
+                .build();
         Optional<V> v = get(request);
         if(v != null && v.isPresent()){
             return v.get();
