@@ -2,6 +2,11 @@ package org.springcat.cacheLoader;
 
 
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 
 public class LoadingCacheTest {
@@ -35,12 +40,21 @@ public class LoadingCacheTest {
                 .loaderConcurrency(new Semaphore(2))
                 .build();
 
+        ArrayList< Future<Object>> objects = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-           execAsync(()->{
-                String test = (String) loadingCache.getWithLoader("test");
-                System.out.println(test);
-            });
+            Future<Object> test = loadingCache.getWithLoaderAsync("test");
+            objects.add(test);
         }
+
+        objects.forEach(e -> {
+            try {
+                Object o = e.get();
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+            } catch (ExecutionException ex) {
+                ex.printStackTrace();
+            }
+        });
 
         String test = (String) loadingCache.getWithLoader("test");
         System.out.println(test);

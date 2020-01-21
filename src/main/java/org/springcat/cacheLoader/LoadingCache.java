@@ -1,5 +1,6 @@
 package org.springcat.cacheLoader;
 
+import cn.hutool.core.thread.ThreadUtil;
 import lombok.Builder;
 import lombok.Data;
 
@@ -181,7 +182,32 @@ public class LoadingCache<K, V> {
         return refresh(request);
     }
 
+    public Future<V> getWithLoaderAsync(K key) {
+        return ThreadUtil.execAsync(new Callable<V>() {
+            @Override
+            public V call() throws Exception {
+                return getWithLoader(key);
+            }
+        });
+    }
 
+    public Future<V> getWithLoaderAsync(K key, Map<String, Object> requestParams) {
+        return ThreadUtil.execAsync(new Callable<V>() {
+            @Override
+            public V call() throws Exception {
+                return getWithLoader(key,requestParams);
+            }
+        });
+    }
+
+    public Future<CacheResponse<K, V>> getWithLoaderAsync(CacheRequest<K, V> request) throws InterruptedException {
+        return ThreadUtil.execAsync(new Callable<CacheResponse<K, V>>() {
+            @Override
+            public CacheResponse<K, V> call() throws Exception {
+                return getWithLoader(request);
+            }
+        });
+    }
     /******************************************private****************************************************/
 
     /**
