@@ -38,8 +38,8 @@ public class LoadingCacheTest {
                 .emptyElement("empty")
                 .emptyElementExpireTime(5L)
                 .loaderConcurrency(new Semaphore(2))
-                .keyGenerator(s -> {
-                    return "prefix"+s.getKey()+"suffix";
+                .keyGenerator(request -> {
+                    return "prefix"+request.getKey()+"suffix";
                 })
                 .build();
 
