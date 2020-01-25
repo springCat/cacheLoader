@@ -64,7 +64,9 @@ public class LoadingCache<K, V> {
     @Builder.Default
     private KeyLockPool<K, V> keyLockPool;
 
-    public LoadingCache(String cacheName, int cacheSize, Function<CacheRequest<K, V>, V> cacheGetter, Function<CacheRequest<K, V>, V> cacheLoader, Consumer<CacheRequest<K, V>> cachePutter, long expireTime, boolean emptyElementCached, V emptyElement, long emptyElementExpireTime, long randomExpireTime, Semaphore loaderConcurrency, long loaderConcurrencyPolicyTimeout, boolean isLoaderConcurrencyOnKey, long loaderConcurrencyPolicyTimeoutOnKey, KeyLockPool<K, V> keyLockPool) {
+    private Function<CacheRequest<K, V>, K> keyGenerator;
+
+    public LoadingCache(String cacheName, int cacheSize, Function<CacheRequest<K, V>, V> cacheGetter, Function<CacheRequest<K, V>, V> cacheLoader, Consumer<CacheRequest<K, V>> cachePutter, long expireTime, boolean emptyElementCached, V emptyElement, long emptyElementExpireTime, long randomExpireTime, Semaphore loaderConcurrency, long loaderConcurrencyPolicyTimeout, boolean isLoaderConcurrencyOnKey, long loaderConcurrencyPolicyTimeoutOnKey, KeyLockPool<K, V> keyLockPool, Function<CacheRequest<K, V>, K> keyGenerator) {
         this.cacheName = cacheName;
         this.cacheSize = cacheSize;
         this.cacheGetter = cacheGetter;
@@ -80,6 +82,7 @@ public class LoadingCache<K, V> {
         this.isLoaderConcurrencyOnKey = isLoaderConcurrencyOnKey;
         this.loaderConcurrencyPolicyTimeoutOnKey = loaderConcurrencyPolicyTimeoutOnKey;
         this.keyLockPool = keyLockPool;
+        this.keyGenerator = keyGenerator;
 
         assertNotNull(cacheName);
         assertNotNull(cacheSize);
@@ -89,20 +92,20 @@ public class LoadingCache<K, V> {
         assertTrue(expireTime > 0);
 
         //校验空值缓存
-        if(emptyElementCached){
+        if (emptyElementCached) {
             assertNotNull(emptyElement);
             assertTrue(emptyElementExpireTime > 0);
         }
         //校验cache级并发控制
-        if(loaderConcurrency != null){
+        if (loaderConcurrency != null) {
             assertTrue(loaderConcurrencyPolicyTimeout >= 0);
         }
         //校验key级并发控制
-        if(!isLoaderConcurrencyOnKey){
+        if (!isLoaderConcurrencyOnKey) {
             assertTrue(loaderConcurrencyPolicyTimeoutOnKey >= 0);
         }
 
-        if(keyLockPool == null) {
+        if (keyLockPool == null) {
             this.keyLockPool = new KeyLockPool(cacheSize, expireTime * 1000L);
         }
     }
@@ -132,6 +135,7 @@ public class LoadingCache<K, V> {
      */
     public V getOnly(CacheRequest<K, V> request) throws InterruptedException {
         assertNotNull(request.getKey());
+        request.setKeyGenerator(keyGenerator);
         return keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
     }
 
@@ -155,6 +159,7 @@ public class LoadingCache<K, V> {
 
     public CacheResponse<K, V> refresh(CacheRequest<K, V> request) throws InterruptedException {
         assertNotNull(request.getKey());
+        request.setKeyGenerator(keyGenerator);
         return refreshWithCacheLock(request);
     }
 
@@ -185,6 +190,7 @@ public class LoadingCache<K, V> {
      */
     public CacheResponse<K, V> getWithLoader(CacheRequest<K, V> request) throws InterruptedException {
         assertNotNull(request.getKey());
+        request.setKeyGenerator(keyGenerator);
         V v = keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
         if (v != null) {
             CacheResponse.CacheResponseBuilder<K, V> responseBuilder = CacheResponse.builder();
@@ -209,7 +215,7 @@ public class LoadingCache<K, V> {
         return ThreadUtil.execAsync(new Callable<V>() {
             @Override
             public V call() throws Exception {
-                return getWithLoader(key,requestParams);
+                return getWithLoader(key, requestParams);
             }
         });
     }
@@ -310,13 +316,13 @@ public class LoadingCache<K, V> {
 
 
     private void assertTrue(boolean flag) throws IllegalArgumentException {
-        if(!flag){
+        if (!flag) {
             throw new IllegalArgumentException();
         }
     }
 
     private void assertNotNull(Object object) throws IllegalArgumentException {
-        if(Objects.isNull(object)){
+        if (Objects.isNull(object)) {
             throw new IllegalArgumentException();
         }
     }

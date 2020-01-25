@@ -27,7 +27,7 @@ public class LoadingCacheTest {
                     request.getAttributes().put("cacheLoader", "cacheLoader");
                     //睡5秒
                     sleep(2000L);
-                    return null;
+                    return request.getGenKey();
                 })
                 .cachePutter(request -> {
                     System.out.println("cachePutter request:"+request);;
@@ -38,6 +38,9 @@ public class LoadingCacheTest {
                 .emptyElement("empty")
                 .emptyElementExpireTime(5L)
                 .loaderConcurrency(new Semaphore(2))
+                .keyGenerator(s -> {
+                    return "prefix"+s.getKey()+"suffix";
+                })
                 .build();
 
         ArrayList< Future<Object>> objects = new ArrayList<>();

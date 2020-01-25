@@ -51,6 +51,9 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
                 .cachePutter(request -> {
                     System.out.println("cachePutter here request:"+request);;
                 })
+                .keyGenerator(s -> {
+                    return "prefix"+s.getKey()+"suffix";
+                })
                 .randomExpireTime(5L)
                 .expireTime(60L)
                 .emptyElementCached(true)
@@ -84,6 +87,9 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
                 })
                 .cachePutter(request -> {
                     redisTemplate.opsForValue().set(request.getKey(), request.getCacheValue(), request.getExpireTime(), TimeUnit.SECONDS);
+                })
+                .keyGenerator(s -> {
+                    return "prefix"+s.getKey()+"suffix";
                 })
                 .randomExpireTime(5L)
                 .expireTime(60L)
