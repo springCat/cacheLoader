@@ -135,7 +135,9 @@ public class LoadingCache<K, V> {
      */
     public V getOnly(CacheRequest<K, V> request) throws InterruptedException {
         assertNotNull(request.getKey());
-        request.setKeyGenerator(keyGenerator);
+        if(request.getKeyGenerator() == null) {
+            request.setKeyGenerator(keyGenerator);
+        }
         return keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
     }
 
@@ -159,7 +161,9 @@ public class LoadingCache<K, V> {
 
     public CacheResponse<K, V> refresh(CacheRequest<K, V> request) throws InterruptedException {
         assertNotNull(request.getKey());
-        request.setKeyGenerator(keyGenerator);
+        if(request.getKeyGenerator() == null) {
+            request.setKeyGenerator(keyGenerator);
+        }
         return refreshWithCacheLock(request);
     }
 
@@ -190,7 +194,9 @@ public class LoadingCache<K, V> {
      */
     public CacheResponse<K, V> getWithLoader(CacheRequest<K, V> request) throws InterruptedException {
         assertNotNull(request.getKey());
-        request.setKeyGenerator(keyGenerator);
+        if(request.getKeyGenerator() == null) {
+            request.setKeyGenerator(keyGenerator);
+        }
         V v = keyLockPool.doWithReadLock(loaderConcurrencyPolicyTimeoutOnKey, cacheGetter, request);
         if (v != null) {
             CacheResponse.CacheResponseBuilder<K, V> responseBuilder = CacheResponse.builder();

@@ -69,38 +69,59 @@ LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder()
 
 ```java
     @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+        private RedisTemplate<String, Object> redisTemplate;
     
-    public void test() {
-        LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
-
-        LoadingCache<String,Object> loadingCache = builder
-                .cacheName("testCache")
-                .cacheGetter(request -> {
-                    request.getAttributes().put("cacheGetter", "cacheGetter");
-                    return redisTemplate.opsForValue().get(request.getKey());
-                })
-                .cacheLoader(request -> {
-                    System.out.println("cacheLoader request:"+request);
-                    request.getAttributes().put("cacheLoader", "cacheLoader");
-                    //cache loader invoke here get Value
-                    return ${cacheValue};
-                })
-                .cachePutter(request -> {
-                    redisTemplate.opsForValue().set(request.getKey(), request.getCacheValue(), request.getExpireTime(), TimeUnit.SECONDS);
-                })
-                .keyGenerator(s -> {
-                    return "prefix"+s.getKey()+"suffix";
-                })
-                .randomExpireTime(5L)
-                .expireTime(60L)
-                .emptyElementCached(true)
-                .emptyElement("empty")
-                .emptyElementExpireTime(5L)
-                .loaderConcurrency(new Semaphore(2))
-                .build();
-        
-        String test = (String) loadingCache.getWithLoader("test");
- 
-    }
+        @Test
+        public void test() {
+            LoadingCache.LoadingCacheBuilder<String,Object> builder = LoadingCache.builder();
+    
+            LoadingCache<String,Object> loadingCache = builder
+                    .cacheName("testCache")
+                    .cacheGetter(request -> {
+                        Object o = redisTemplate.opsForValue().get(request.getGenKey());
+                        request.getAttributes().put("cacheGetter", "cacheGetter");
+                        return o;
+                    })
+                    .cacheLoader(request -> {
+                        request.getAttributes().put("cacheLoader", "cacheLoader");
+                        //睡5秒
+                        //get from db
+                        System.out.println("get from db");
+                        sleep(2000L);
+                        return request.getGenKey()+" value";
+                    })
+                    .cachePutter(request -> {
+                        redisTemplate.opsForValue().set(request.getGenKey(),request.getValue(),request.getExpireTime());
+                    })
+                    .randomExpireTime(5L)
+                    .expireTime(60L)
+                    .emptyElementCached(false)
+                    .emptyElement("empty")
+                    .emptyElementExpireTime(5L)
+                    .loaderConcurrency(new Semaphore(2))
+                    .keyGenerator(request -> {
+                        return "prefix"+request.getKey()+"suffix";
+                    })
+                    .build();
+    
+            ArrayList< Future<Object>> objects = new ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Future<Object> test = loadingCache.getWithLoaderAsync("test");
+                objects.add(test);
+            }
+    
+            objects.forEach(e -> {
+                try {
+                    Object o = e.get();
+                } catch (InterruptedException ex) {
+                    ex.printStackTrace();
+                } catch (ExecutionException ex) {
+                    ex.printStackTrace();
+                }
+            });
+    
+            String test = (String) loadingCache.getWithLoader("test");
+            System.out.println(test);
+            sleep(10000L);
+        }
 ```
